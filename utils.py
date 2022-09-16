@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import deepspeed
 
 from transformers import (
   AutoTokenizer,
@@ -71,9 +70,3 @@ def initialize_model(args, total_steps):
                             num_training_steps= total_steps)
 
   return model, optimizer, scheduler, device
-
-def initialize_model_with_ds(args):
-  model = AutoModelForMaskedLM.from_pretrained(args.model_name_or_path)
-  model, optimizer, _, scheduler = deepspeed.initialize(model = model, args=args, model_parameters=model.parameters())
-
-  return model, optimizer, scheduler
