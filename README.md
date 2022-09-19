@@ -2,7 +2,7 @@
 
 비정제 한국어 문장(ex. Korean Hate Speech Dataset, Naver Sentiment Movie Corpus)에 데이터 증강을 적용하기 위해서 [KcELECTRA-base](https://github.com/Beomi/KcELECTRA)를 Masked Language Modeling 방식으로 학습하는 코드입니다. 모델을 트레이닝한 후에 새로운 문장의 일부에 마스킹을 적용하고 인퍼런스를 적용하면 아래와 같이 빈칸에 알맞은 새로운 토큰을 후보로 생성해냅니다. 대용량의 데이터를 빠르게 학습하기 위해서 deepspeed ZeRO2를 활용합니다.
 프로젝트에 대해서 좀 더 자세히 알고 싶으시다면 제 [velog](https://velog.io/@seoyeon96/PLM%EC%9D%84-%EC%9D%B4%EC%9A%A9%ED%95%9C-%ED%95%9C%EA%B5%AD%EC%96%B4-%ED%98%90%EC%98%A4-%ED%91%9C%ED%98%84-%ED%83%90%EC%A7%80-6.-%EB%8D%B0%EC%9D%B4%ED%84%B0-%EC%A6%9D%EA%B0%95)로 놀러오세요!🤗
-pretrained model([huggingface hub](https://huggingface.co/seoyeon96/KcELECTRA-MLM))
+- pretrained model([huggingface hub](https://huggingface.co/seoyeon96/KcELECTRA-MLM))
 
 ![스크린샷 2022-09-09 오후 5 38 47](https://user-images.githubusercontent.com/50821216/189335539-524842e2-c793-48f7-ac88-c7c5145f9660.png)
 
