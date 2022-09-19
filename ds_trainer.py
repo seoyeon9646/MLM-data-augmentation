@@ -16,14 +16,6 @@ warnings.filterwarnings("ignore")
 
 class Trainer(object):
     def __init__(self, args, tokenizer, train_dataset=None, dev_dataset=None):
-        '''
-        deepspeed를 이용하여 학습하는 Trainer class
-        Args:
-            args            ([argparse.Namespace])
-            tokenizer       ([transformers.AutoTokenizer])
-            train_dataset   ([torch.utils.data.Dataset/data_loader.DataSet], *optional*)
-            dev_dataset     ([torch.utils.data.Dataset/data_loader.DataSet], *optional*)
-        '''
         self.args = args
         self.tokenizer = tokenizer
         self.train_dataset = train_dataset
@@ -31,29 +23,23 @@ class Trainer(object):
 
         self.dir_id = None
         self.device = torch.device(args.gpu)
-
-        # initialize the DeepSpeed engine
         self.model, self.optimizer, self.scheduler = utils.initialize_model_with_ds(args)
 
     def train(self):
         if self.train_dataset is None:
-            # 학습 데이터가 존재하지 않아서 오류 발생
             raise Exception("train_dataset doesn't exists!")
 
-        ####################################################
-        # 현재 날짜+시간으로 폴더를 생성하고 현재 모델의 정보를 저장
         today = datetime.today().strftime("%y%m%d_%H%M%S")
         self.dir_id = self.args.model_dir + "/" + str(today)
         if not os.path.exists(self.dir_id):
             os.makedirs(self.dir_id)
 
-        # 로깅용 파일. 로깅은 Gpu0에서만 진행
         log = open(self.dir_id + "/log.txt", "w")
 
         args_dict = vars(self.args)
         with open(self.dir_id + "/params.txt", "w") as f:
             f.write(json.dumps(args_dict))
-        ####################################################
+    
         self.loss_fn = nn.CrossEntropyLoss()
 
         train_sampler = DistributedSampler(self.train_dataset, rank=self.args.rank, num_replicas=self.args.world_size, shuffle=True)
@@ -84,7 +70,6 @@ class Trainer(object):
             for step, batch in enumerate(train_dataloader):
                 with autocast():
                     batch_counts += 1
-                    # dynamic masking 적용
                     b_input_ids, b_label = utils.mask_tokens(self.tokenizer, batch[0])
                     b_input_ids, b_label = b_input_ids.to(self.device), b_label.to(self.device)
                     b_attn_mask = batch[1].to(self.device)
@@ -105,7 +90,7 @@ class Trainer(object):
                 self.model.step()
 
                 ########################################################################################
-                # logging
+                # Print the loss values and time elapsed for every 20 batches
                 ########################################################################################
                 if self.args.rank==0 and ((step % self.args.logging_steps == 0 and step != 0) or (step == len(train_dataloader) - 1)):
                     time_elapsed = time.time() - t0_batch
@@ -124,7 +109,6 @@ class Trainer(object):
             if valid_dataloader:
                 result = self.evaluate(valid_dataloader)
                 result.update({"train_loss":round(avg_train_loss, 4)})
-
                 if self.args.rank==0:
                     print(result)
                     print(result, file=log)
@@ -133,21 +117,20 @@ class Trainer(object):
                     best_log = result
                     loss_check = result["loss"]
                     stop_count = 0
-                    #self.model.save_checkpoint(self.dir_id) #tag
-                    self.save_model()
+                    #self.save_model()
+                    self.model.save_checkpoint(self.dir_id) #tag
                 else:
                     stop_count += 1
 
                 if stop_count >= self.args.max_stop_number:
-                    # stop_number가 모두 카운팅 됐을 때, 조기 종료
                     if self.args.rank==0:
                         print("EARLY STOPPED")
                         print("EARLY STOPPED", file=log)
                         log.close()
                     break
             else:
-                #self.model.save_checkpoint(self.dir_id) #tag
-                self.save_model()
+                self.model.save_checkpoint(self.dir_id) #tag
+                #self.save_model()
 
             time_elapsed = time.time() - t0_epoch
             if self.args.rank==0:
@@ -156,8 +139,8 @@ class Trainer(object):
         if self.args.rank==0:
             print()
             print("MODEL TRAINING END")
-            print("MODEL TRAINING END", file=log)
             print(best_log)
+            print("MODEL TRAINING END", file=log)
             print(best_log, file=log)
             log.close()
 
@@ -190,7 +173,7 @@ class Trainer(object):
             "loss" : val_loss,
         }
         return results
-    
+
     def save_model(self):
         # Save model checkpoint
         if not os.path.exists(self.dir_id):
