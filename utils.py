@@ -8,7 +8,6 @@ from transformers import (
     AdamW,
     get_scheduler
 )
-
 def mask_tokens(tokenizer, input_ids:torch.Tensor, mlm_prob:float=0.15, do_rep_random:bool=True):
     '''
         Copied from huggingface/transformers/data/data_collator - torch.mask_tokens()

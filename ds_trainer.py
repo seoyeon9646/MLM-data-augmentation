@@ -28,7 +28,20 @@ class Trainer(object):
     def train(self):
         if self.train_dataset is None:
             raise Exception("train_dataset doesn't exists!")
+        
+        #########################################################
+        # 1. 데이터로더 생성 - 학습 샘플러는 DistributedSampler로 사용해야함
+        train_sampler = DistributedSampler(self.train_dataset, rank=self.args.rank, num_replicas=self.args.world_size, shuffle=True)
+        train_dataloader = DataLoader(self.train_dataset, sampler = train_sampler, batch_size = self.args.train_batch_size)
+        
+        valid_dataloader = None
+        if self.dev_dataset is not None:
+            valid_dataloader = DataLoader(self.dev_dataset, batch_size = self.args.eval_batch_size)
+        #########################################################
 
+
+        #########################################################
+        # 2. 모델을 저장할 폴더 생성 및 로깅, 파라미터 저장 파일 생성
         today = datetime.today().strftime("%y%m%d_%H%M%S")
         self.dir_id = self.args.model_dir + "/" + str(today)
         if not os.path.exists(self.dir_id):
@@ -39,23 +52,18 @@ class Trainer(object):
         args_dict = vars(self.args)
         with open(self.dir_id + "/params.txt", "w") as f:
             f.write(json.dumps(args_dict))
+        #########################################################
     
         self.loss_fn = nn.CrossEntropyLoss()
-
-        train_sampler = DistributedSampler(self.train_dataset, rank=self.args.rank, num_replicas=self.args.world_size, shuffle=True)
-        train_dataloader = DataLoader(self.train_dataset, sampler = train_sampler, batch_size = self.args.train_batch_size)
-        
-        valid_dataloader = None
-        if self.dev_dataset is not None:
-            valid_dataloader = DataLoader(self.dev_dataset, batch_size = self.args.eval_batch_size)
 
         best_log = None
         loss_check, stop_count = 10000, 0
         #############################################
-        # Start training process
+        # 3. 학습 프로세스 시작
         #############################################
         for epoch_i in range(self.args.num_train_epochs):
-            train_sampler.set_epoch(epoch_i)
+            train_sampler.set_epoch(epoch_i) 
+
             t0_epoch, t0_batch = time.time(), time.time()
             total_loss, batch_loss, batch_counts = 0, 0, 0
             self.model.train()
@@ -90,7 +98,7 @@ class Trainer(object):
                 self.model.step()
 
                 ########################################################################################
-                # Print the loss values and time elapsed for every 20 batches
+                # Print the loss values and time elapsed for every X batches
                 ########################################################################################
                 if self.args.rank==0 and ((step % self.args.logging_steps == 0 and step != 0) or (step == len(train_dataloader) - 1)):
                     time_elapsed = time.time() - t0_batch
@@ -117,8 +125,8 @@ class Trainer(object):
                     best_log = result
                     loss_check = result["loss"]
                     stop_count = 0
-                    #self.save_model()
-                    self.model.save_checkpoint(self.dir_id) #tag
+                    self.save_model()
+                    #self.model.save_checkpoint(self.dir_id) #tag
                 else:
                     stop_count += 1
 
@@ -129,8 +137,8 @@ class Trainer(object):
                         log.close()
                     break
             else:
-                self.model.save_checkpoint(self.dir_id) #tag
-                #self.save_model()
+                #self.model.save_checkpoint(self.dir_id) #tag
+                self.save_model()
 
             time_elapsed = time.time() - t0_epoch
             if self.args.rank==0:
