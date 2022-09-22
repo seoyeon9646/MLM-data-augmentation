@@ -75,7 +75,7 @@ def augment_one_sent(model:AutoModelForMaskedLM,
                     tokenizer:AutoTokenizer,
                     sent:str,
                     dev:Union[str, torch.device],
-                    args:argparse.Namespace) -> str:
+                    args:Union[argparse.Namespace, dict]) -> str:
     '''
     한 문장에 랜덤으로 마스킹을 적용하여 새로운 문장을 생성(증강)
 
@@ -94,21 +94,31 @@ def augment_one_sent(model:AutoModelForMaskedLM,
         (str) : 증강 문장
     '''
 
-    k = args.k
-    threshold = args.threshold
-    mlm_prob = args.mlm_prob
+    if type(args) == argparse.Namespace:
+        k = args.k
+        threshold = args.threshold
+        mlm_prob = args.mlm_prob
+    else:
+        ## type == dict
+        k = args["k"]
+        threshold = args["threshold"]
+        mlm_prob = args["mlm_prob"]
 
     model.eval()
 
     input_id, attention_mask  = tokenize(tokenizer, sent)
+    org_ids = copy.deepcopy(input_id[0])
+    
     masked_input_id, _ = mask_tokens(tokenizer, input_id, mlm_prob, do_rep_random=False)
+    while masked_input_id.cpu().tolist()[0].count(tokenizer.mask_token_id) < 1:
+        masked_input_id, _ = mask_tokens(tokenizer, input_id, mlm_prob, do_rep_random=False)
+    
     with torch.no_grad():
         masked_input_id, attention_mask = masked_input_id.to(dev), attention_mask.to(dev)
         output = model(masked_input_id, attention_mask = attention_mask)
         logits = output["logits"][0]
 
-    copied = copy.deepcopy(masked_input_id[0].cpu())
-    org_ids = copy.deepcopy(input_id[0])
+    copied = copy.deepcopy(masked_input_id.cpu().tolist()[0])
     for i in range(len(copied)):
         if copied[i] == tokenizer.mask_token_id:
             org_token = org_ids[i]
@@ -200,7 +210,6 @@ def batch_augment(model:AutoModelForMaskedLM,
 
 
 if __name__ == "__main__":
-    import argparse
     import random
 
     from data_loader import AugmentDataSet
